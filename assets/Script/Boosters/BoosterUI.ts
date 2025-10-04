@@ -11,21 +11,21 @@ import { BoosterSystem } from "./BoosterSystem";
 @ccclass
 export class BoosterUI extends cc.Component {
     @property(cc.Label)
-    bombCountLabel: cc.Label = null;
+    bombCountLabel: cc.Label = null!;
 
     @property(cc.Label)
-    teleportCountLabel: cc.Label = null;
+    teleportCountLabel: cc.Label = null!;
 
     @property(cc.Button)
-    bombButton: cc.Button = null;
+    bombButton: cc.Button = null!;
 
     @property(cc.Button)
-    teleportButton: cc.Button = null;
+    teleportButton: cc.Button = null!;
 
     @property(BoosterSystem)
-    boosterSystem: BoosterSystem = null;
+    boosterSystem: BoosterSystem = null!;
 
-    private eventSystem: EventSystem;
+    private eventSystem!: EventSystem;
 
     onLoad() {
         this.eventSystem = EventSystem.getInstance();
@@ -62,15 +62,15 @@ export class BoosterUI extends cc.Component {
         }
     }
 
-    private onUIUpdate(data: BoosterState): void {
+    private onUIUpdate(data?: BoosterState): void {
         this.updateUI();
     }
 
-    private onBoosterActivated(data: any): void {
+    private onBoosterActivated(data?: { type?: BoosterType }): void {
         this.updateUI();
     }
 
-    private onBoosterDeactivated(data: any): void {
+    private onBoosterDeactivated(data?: { type?: BoosterType }): void {
         this.updateUI();
     }
 

@@ -10,19 +10,27 @@ import { Tile } from "../Tiles/Tile";
 import { TileConfig } from "../Tiles/TileTypes";
 import { EventSystem, Events } from "../Core/EventSystem";
 import { BoosterSystem } from "../Boosters/BoosterSystem";
+import { PositionUtils } from "../Utils/PositionUtils";
+import { TileAreaUtils } from "../Utils/TileAreaUtils";
+import { WorldPositionUtils } from "../Utils/WorldPositionUtils";
 
 @ccclass
 export class TileContainer extends cc.Component {
     @property(cc.Prefab)
-    tilePrefab: cc.Prefab = null;
+    tilePrefab: cc.Prefab = null!;
 
     @property(BoosterSystem)
-    boosterSystem: BoosterSystem = null;
+    boosterSystem: BoosterSystem = null!;
 
-    private config: GameConfig;
+    private config!: GameConfig;
     private tiles: Tile[][] = [];
-    private eventSystem: EventSystem;
+    private eventSystem!: EventSystem;
     private wasSuperTileActivation: boolean = false;
+    
+    private boundOnTileClicked!: (data?: Position) => void;
+    private boundOnBombExecute!: (data?: { positions?: Position[]; center?: Position }) => void;
+    private boundOnTeleportExecute!: (data?: { position1?: Position; position2?: Position }) => void;
+    private boundOnTilesDestroyed!: (data?: Position[]) => void;
 
     onLoad() {
         this.eventSystem = EventSystem.getInstance();
@@ -30,9 +38,15 @@ export class TileContainer extends cc.Component {
     }
 
     private setupEventListeners(): void {
-        this.eventSystem.on(Events.TILE_CLICKED, this.onTileClicked.bind(this));
-        this.eventSystem.on(Events.BOOSTER_BOMB_EXECUTE, this.onBombExecute.bind(this));
-        this.eventSystem.on(Events.BOOSTER_TELEPORT_EXECUTE, this.onTeleportExecute.bind(this));
+        this.boundOnTileClicked = this.onTileClicked.bind(this);
+        this.boundOnBombExecute = this.onBombExecute.bind(this);
+        this.boundOnTeleportExecute = this.onTeleportExecute.bind(this);
+        this.boundOnTilesDestroyed = this.onTilesDestroyed.bind(this);
+        
+        this.eventSystem.on(Events.TILE_CLICKED, this.boundOnTileClicked);
+        this.eventSystem.on(Events.BOOSTER_BOMB_EXECUTE, this.boundOnBombExecute);
+        this.eventSystem.on(Events.BOOSTER_TELEPORT_EXECUTE, this.boundOnTeleportExecute);
+        this.eventSystem.on(Events.TILES_DESTROYED, this.boundOnTilesDestroyed);
     }
 
     public initializeContainer(config: GameConfig): void {
@@ -52,7 +66,7 @@ export class TileContainer extends cc.Component {
                 for (let y = 0; y < this.tiles[x].length; y++) {
                     if (this.tiles[x][y]) {
                         this.tiles[x][y].destroyTile();
-                        this.tiles[x][y] = null;
+                        this.tiles[x][y] = null!;
                     }
                 }
             }
@@ -68,12 +82,19 @@ export class TileContainer extends cc.Component {
         this.generateInitialTiles();
     }
 
+    public shuffleField(): void {
+        this.clearAllTiles();
+        
+        this.createTileGrid();
+        this.generateInitialTiles();
+    }
+
     private createTileGrid(): void {
         this.tiles = [];
         for (let x = 0; x < this.config.fieldWidth; x++) {
             this.tiles[x] = [];
             for (let y = 0; y < this.config.fieldHeight; y++) {
-                this.tiles[x][y] = null;
+                this.tiles[x][y] = null!;
             }
         }
     }
@@ -100,24 +121,20 @@ export class TileContainer extends cc.Component {
             this.tiles[position.x][position.y] = tileComponent;
         }
 
-        tileNode.setParent(this.node);
-        const worldPos = this.getWorldPosition(position);
-        tileNode.setPosition(worldPos);
+        if (this.node) {
+            tileNode.setParent(this.node);
+            const worldPos = this.getWorldPosition(position);
+            tileNode.setPosition(worldPos);
+        }
     }
 
     private getWorldPosition(position: Position): cc.Vec2 {
-        const tileSize = 100;
-        const spacing = 120;
-        const startX = -(this.config.fieldWidth - 1) * spacing / 2;
-        const startY = (this.config.fieldHeight - 1) * spacing / 2;
-        
-        return cc.v2(
-            startX + position.x * spacing,
-            startY - position.y * spacing
-        );
+        return WorldPositionUtils.getWorldPosition(position);
     }
 
-    private onTileClicked(position: Position): void {
+    private onTileClicked(data?: Position): void {
+        if (!data) return;
+        const position = data;
         const tile = this.getTileAt(position);
         if (!tile) {
             return;
@@ -140,20 +157,18 @@ export class TileContainer extends cc.Component {
     }
 
     private getTileAt(position: Position): Tile | null {
-        if (this.isValidPosition(position)) {
+        if (this.isValidPosition(position) && this.tiles[position.x]) {
             return this.tiles[position.x][position.y];
         }
         return null;
     }
 
     private isValidPosition(position: Position): boolean {
-        return position.x >= 0 && position.x < this.config.fieldWidth &&
-               position.y >= 0 && position.y < this.config.fieldHeight;
+        return PositionUtils.isValidPosition(position);
     }
 
     private isValidPositionXY(x: number, y: number): boolean {
-        return x >= 0 && x < this.config.fieldWidth &&
-               y >= 0 && y < this.config.fieldHeight;
+        return PositionUtils.isValidPositionXY(x, y);
     }
 
     private findAndBurnGroup(position: Position): void {
@@ -163,6 +178,7 @@ export class TileContainer extends cc.Component {
         const group = this.findConnectedTiles(position, clickedTile.type);
         if (group.length >= 2) {
             this.burnTiles(group);
+            this.eventSystem.emit(Events.GROUP_BURNED_SUCCESSFULLY);
         }
     }
 
@@ -202,32 +218,13 @@ export class TileContainer extends cc.Component {
     }
 
     private burnTiles(positions: Position[]): void {
-        this.animateNormalTileDestruction(positions);
+        this.eventSystem.emit(Events.TILES_BURNED, positions);
     }
 
-    private animateNormalTileDestruction(positions: Position[]): void {
-        let completedAnimations = 0;
-        const totalAnimations = positions.length;
-        
-        for (const pos of positions) {
-            const tile = this.getTileAt(pos);
-            if (tile) {
-                cc.tween(tile.node)
-                    .to(0.3, { opacity: 0, scale: 0 })
-                    .call(() => {
-                        completedAnimations++;
-                        if (completedAnimations >= totalAnimations) {
-                            this.destroyTilesAfterAnimation(positions);
-                        }
-                    })
-                    .start();
-            } else {
-                completedAnimations++;
-                if (completedAnimations >= totalAnimations) {
-                    this.destroyTilesAfterAnimation(positions);
-                }
-            }
-        }
+    private onTilesDestroyed(data?: Position[]): void {
+        if (!data) return;
+        const positions = data;
+        this.destroyTilesAfterAnimation(positions);
     }
 
     private destroyTilesAfterAnimation(positions: Position[]): void {
@@ -236,11 +233,9 @@ export class TileContainer extends cc.Component {
             if (tile) {
                 tile.setState(TileState.BURNING);
                 tile.destroyTile();
-                this.tiles[pos.x][pos.y] = null;
+                this.tiles[pos.x][pos.y] = null!;
             }
         }
-
-        this.eventSystem.emit(Events.TILES_BURNED, positions);
         
         if (positions.length >= 4 && !this.wasSuperTileActivation) {
             this.createSuperTile(positions[0], positions.length);
@@ -276,7 +271,7 @@ export class TileContainer extends cc.Component {
         }
         
         for (let y = 0; y < this.config.fieldHeight; y++) {
-            this.tiles[column][y] = null;
+            this.tiles[column][y] = null!;
         }
         
         for (let i = 0; i < columnTiles.length; i++) {
@@ -308,28 +303,44 @@ export class TileContainer extends cc.Component {
     private animateNewTilesCreation(positions: Position[]): void {
         for (let i = 0; i < positions.length; i++) {
             const pos = positions[i];
-            
             this.createTileAt(pos);
             const tile = this.getTileAt(pos);
             
             if (tile) {
                 const targetWorldPos = this.getWorldPosition(pos);
-                
                 const startY = targetWorldPos.y + 200;
                 tile.node.y = startY;
                 
-                cc.tween(tile.node)
+                const tween = cc.tween(tile.node)
                     .to(0.2, { position: cc.v3(targetWorldPos.x, targetWorldPos.y, 0) })
                     .start();
+                
+                const stopTween = () => {
+                    if (tween) {
+                        tween.stop();
+                    }
+                };
+                
+                tile.node.on('destroy', stopTween);
+                tile.node.on('remove', stopTween);
             }
         }
     }
 
     private animateTileFall(tile: Tile, newPosition: Position): void {
         const worldPos = this.getWorldPosition(newPosition);
-        cc.tween(tile.node)
+        const tween = cc.tween(tile.node)
             .to(0.15, { position: cc.v3(worldPos.x, worldPos.y, 0) })
             .start();
+        
+        const stopTween = () => {
+            if (tween) {
+                tween.stop();
+            }
+        };
+        
+        tile.node.on('destroy', stopTween);
+        tile.node.on('remove', stopTween);
     }
 
     private createSuperTile(position: Position, groupSize: number): void {
@@ -404,35 +415,11 @@ export class TileContainer extends cc.Component {
         
         if (tilesToDestroy.length > 0) {
             tilesToDestroy.push(position);
-            
-            this.animateSuperTileDestruction(tilesToDestroy);
+            this.burnTiles(tilesToDestroy);
+            this.eventSystem.emit(Events.GROUP_BURNED_SUCCESSFULLY);
         }
     }
 
-    private animateSuperTileDestruction(positions: Position[]): void {
-        let completedAnimations = 0;
-        const totalAnimations = positions.length;
-        
-        for (const pos of positions) {
-            const tile = this.getTileAt(pos);
-            if (tile) {
-                cc.tween(tile.node)
-                    .to(0.3, { opacity: 0, scale: 0 })
-                    .call(() => {
-                        completedAnimations++;
-                        if (completedAnimations >= totalAnimations) {
-                            this.burnTiles(positions);
-                        }
-                    })
-                    .start();
-            } else {
-                completedAnimations++;
-                if (completedAnimations >= totalAnimations) {
-                    this.burnTiles(positions);
-                }
-            }
-        }
-    }
 
     private getTilesInRow(row: number): Position[] {
         const tiles: Position[] = [];
@@ -455,44 +442,22 @@ export class TileContainer extends cc.Component {
     }
 
     private getTilesInRadius(centerX: number, centerY: number, radius: number): Position[] {
-        const tiles: Position[] = [];
-        
-        for (let y = centerY - 1; y <= centerY + 1; y++) {
-            for (let x = centerX - 1; x <= centerX + 1; x++) {
-                const isValid = this.isValidPositionXY(x, y);
-                const hasTile = isValid ? this.tiles[x][y] : null;
-                
-                if (isValid && hasTile) {
-                    tiles.push({ x, y });
-                }
-            }
-        }
-        
-        return tiles;
+        return TileAreaUtils.getTilesInRadius({ x: centerX, y: centerY }, radius);
     }
 
     private mergeTilePositions(tiles1: Position[], tiles2: Position[]): Position[] {
-        const merged = [...tiles1];
-        const existingPositions = new Set(tiles1.map(tile => `${tile.x},${tile.y}`));
-        
-        for (const tile of tiles2) {
-            const key = `${tile.x},${tile.y}`;
-            if (!existingPositions.has(key)) {
-                merged.push(tile);
-                existingPositions.add(key);
-            }
-        }
-        
-        return merged;
+        return TileAreaUtils.mergeTilePositions(tiles1, tiles2);
     }
 
-    private onBombExecute(data: any): void {
+    private onBombExecute(data?: { positions?: Position[]; center?: Position }): void {
+        if (!data) return;
         if (data.positions && data.positions.length > 0) {
-            this.animateBoosterDestruction(data.positions);
+            this.burnTiles(data.positions);
         }
     }
 
-    private onTeleportExecute(data: any): void {
+    private onTeleportExecute(data?: { position1?: Position; position2?: Position }): void {
+        if (!data) return;
         if (!data.position1 || !data.position2) {
             return;
         }
@@ -522,28 +487,12 @@ export class TileContainer extends cc.Component {
         }
     }
 
-    private animateBoosterDestruction(positions: Position[]): void {
-        let completedAnimations = 0;
-        const totalAnimations = positions.length;
-        
-        for (const pos of positions) {
-            const tile = this.getTileAt(pos);
-            if (tile) {
-                cc.tween(tile.node)
-                    .to(0.2, { opacity: 0, scale: 0 })
-                    .call(() => {
-                        completedAnimations++;
-                        if (completedAnimations >= totalAnimations) {
-                            this.burnTiles(positions);
-                        }
-                    })
-                    .start();
-            } else {
-                completedAnimations++;
-                if (completedAnimations >= totalAnimations) {
-                    this.burnTiles(positions);
-                }
-            }
-        }
+    onDestroy() {
+        this.eventSystem.off(Events.TILE_CLICKED, this.boundOnTileClicked);
+        this.eventSystem.off(Events.BOOSTER_BOMB_EXECUTE, this.boundOnBombExecute);
+        this.eventSystem.off(Events.BOOSTER_TELEPORT_EXECUTE, this.boundOnTeleportExecute);
+        this.eventSystem.off(Events.TILES_DESTROYED, this.boundOnTilesDestroyed);
+        this.unscheduleAllCallbacks();
     }
+
 }

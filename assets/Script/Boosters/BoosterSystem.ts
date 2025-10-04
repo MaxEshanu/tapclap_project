@@ -7,6 +7,7 @@ const { ccclass, property } = cc._decorator;
 import { BoosterType, BoosterState } from "../Core/BoosterTypes";
 import { Position } from "../Core/GameState";
 import { EventSystem, Events } from "../Core/EventSystem";
+import { TileAreaUtils } from "../Utils/TileAreaUtils";
 
 interface BoosterActivation {
     type: BoosterType;
@@ -16,7 +17,7 @@ interface BoosterActivation {
 
 @ccclass
 export class BoosterSystem extends cc.Component {
-    private eventSystem: EventSystem;
+    private eventSystem!: EventSystem;
     
     private boosterState = {
         bomb: 3,
@@ -68,7 +69,9 @@ export class BoosterSystem extends cc.Component {
         }
     }
 
-    private handleTileClick(position: Position): void {
+    private handleTileClick(data?: Position): void {
+        if (!data) return;
+        const position = data;
         if (!this.activation.isActive) {
             return;
         }
@@ -94,6 +97,7 @@ export class BoosterSystem extends cc.Component {
             
             this.consumeBooster(BoosterType.BOMB);
             this.deactivateBooster();
+            this.eventSystem.emit(Events.GROUP_BURNED_SUCCESSFULLY);
         }
     }
 
@@ -111,21 +115,12 @@ export class BoosterSystem extends cc.Component {
             
             this.consumeBooster(BoosterType.TELEPORT);
             this.deactivateBooster();
+            this.eventSystem.emit(Events.GROUP_BURNED_SUCCESSFULLY);
         }
     }
 
     private getTilesInRadius(center: Position, radius: number): Position[] {
-        const tiles: Position[] = [];
-        
-        for (let y = center.y - radius; y <= center.y + radius; y++) {
-            for (let x = center.x - radius; x <= center.x + radius; x++) {
-                if (x >= 0 && x < 8 && y >= 0 && y < 8) {
-                    tiles.push({ x, y });
-                }
-            }
-        }
-        
-        return tiles;
+        return TileAreaUtils.getTilesInRadius(center, radius);
     }
 
     private consumeBooster(type: BoosterType): void {
