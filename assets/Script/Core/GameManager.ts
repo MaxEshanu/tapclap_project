@@ -12,30 +12,26 @@ import { BoosterSystem } from "../Boosters/BoosterSystem";
 @ccclass
 export class GameManager extends cc.Component {
     @property(cc.Node)
-    gameField: cc.Node = null;
+    gameField: cc.Node = null!;
 
     @property(cc.Node)
-    tileContainer: cc.Node = null;
+    tileContainer: cc.Node = null!;
 
     @property(TileContainer)
-    tileContainerComponent: TileContainer = null;
+    tileContainerComponent: TileContainer = null!;
 
     @property(BoosterSystem)
-    boosterSystem: BoosterSystem = null;
+    boosterSystem: BoosterSystem = null!;
 
-    @property(cc.Label)
-    winLoseLabel: cc.Label = null;
-
-    @property(cc.Label)
-    scoreLabel: cc.Label = null;
-
-    @property(cc.Label)
-    movesLabel: cc.Label = null;
 
     private currentState: GameState = GameState.MENU;
-    private config: GameConfig;
-    private stats: GameStats;
-    private eventSystem: EventSystem;
+    private config!: GameConfig;
+    private stats!: GameStats;
+    private eventSystem!: EventSystem;
+    
+    private boundOnTileClicked!: (data?: Position) => void;
+    private boundOnTilesBurned!: (data?: Position[]) => void;
+    private boundOnGroupBurnedSuccessfully!: (data?: void) => void;
 
     onLoad() {
         this.eventSystem = EventSystem.getInstance();
@@ -45,7 +41,6 @@ export class GameManager extends cc.Component {
     }
 
     start() {
-        this.hideWinLoseMessage();
         this.startNewGame();
     }
 
@@ -53,9 +48,9 @@ export class GameManager extends cc.Component {
         this.config = {
             fieldWidth: 8,
             fieldHeight: 8,
-            targetScore: 1000,
+            targetScore: 1500,
             maxMoves: 25,
-            shuffleAttempts: 3
+            shuffleAttempts: 2
         };
     }
 
@@ -72,14 +67,19 @@ export class GameManager extends cc.Component {
     }
 
     private setupEventListeners(): void {
-        this.eventSystem.on(Events.TILE_CLICKED, this.onTileClicked.bind(this));
-        this.eventSystem.on(Events.TILES_BURNED, this.onTilesBurned.bind(this));
+        this.boundOnTileClicked = this.onTileClicked.bind(this);
+        this.boundOnTilesBurned = this.onTilesBurned.bind(this);
+        this.boundOnGroupBurnedSuccessfully = this.onGroupBurnedSuccessfully.bind(this);
+        
+        this.eventSystem.on(Events.TILE_CLICKED, this.boundOnTileClicked);
+        this.eventSystem.on(Events.TILES_BURNED, this.boundOnTilesBurned);
+        this.eventSystem.on(Events.GROUP_BURNED_SUCCESSFULLY, this.boundOnGroupBurnedSuccessfully);
     }
 
     private startNewGame(): void {
         this.setGameState(GameState.PLAYING);
-        this.updateUI();
-        if (this.tileContainerComponent) {
+        this.eventSystem.emit(Events.UI_UPDATE_REQUESTED, this.stats);
+        if (this.tileContainerComponent && this.config) {
             this.tileContainerComponent.initializeContainer(this.config);
         }
     }
@@ -91,76 +91,74 @@ export class GameManager extends cc.Component {
         }
     }
 
-    private onTileClicked(position: Position): void {
+    private onTileClicked(data?: Position): void {
+        if (!data) return;
+        const position = data;
         if (this.currentState !== GameState.PLAYING) return;
         
         if (this.stats.moves <= 0) {
             return;
-        }
-        
-        this.stats.moves = Math.max(0, this.stats.moves - 1);
-        this.eventSystem.emit(Events.MOVES_CHANGED, this.stats.moves);
+        }   
     }
 
-    private onTilesBurned(burnedTiles: Position[]): void {
+    private onTilesBurned(data?: Position[]): void {
+        if (!data) return;
+        const burnedTiles = data;
         const points = burnedTiles.length * 10;
         this.stats.score += points;
         this.eventSystem.emit(Events.SCORE_CHANGED, this.stats.score);
-        this.updateUI();
         this.checkGameEnd();
     }
 
-    private updateUI(): void {
-        if (this.scoreLabel) {
-            this.scoreLabel.string = `ОЧКИ:\n${this.stats.score}/${this.stats.targetScore}`;
-        }
-        if (this.movesLabel) {
-            this.movesLabel.string = this.stats.moves.toString();
-        }
+    private onGroupBurnedSuccessfully(data?: void): void {
+        this.stats.moves = Math.max(0, this.stats.moves - 1);
+        this.eventSystem.emit(Events.MOVES_CHANGED, this.stats.moves);
     }
 
     private checkGameEnd(): void {
         if (this.stats.score >= this.stats.targetScore && !this.stats.isGameOver) {
             this.endGame(true, 'Целевой счет достигнут!');
         } else if (this.stats.moves <= 0 && !this.stats.isGameOver) {
-            this.endGame(false, 'Закончились ходы');
+            this.handleNoMovesLeft();
+        }
+    }
+
+    private handleNoMovesLeft(): void {
+        if (this.stats.shufflesLeft > 0) {
+            this.stats.shufflesLeft--;
+            this.stats.moves += 5;
+            this.eventSystem.emit(Events.MOVES_CHANGED, this.stats.moves);
+            
+            this.scheduleOnce(() => {
+                this.shuffleField();
+            }, 0.5);
+        } else {
+            this.endGame(false, 'Закончились ходы и попытки перемешивания');
+        }
+    }
+
+    private shuffleField(): void {
+        if (this.tileContainerComponent) {
+            this.tileContainerComponent.shuffleField();
         }
     }
 
     private endGame(isWin: boolean, reason: string): void {
         this.stats.isGameOver = true;
         this.stats.isWin = isWin;
-        this.showWinLoseMessage(isWin);
+        
+        if (isWin) {
+            this.eventSystem.emit(Events.GAME_WON);
+        } else {
+            this.eventSystem.emit(Events.GAME_LOST);
+        }
+        
         this.scheduleOnce(() => {
             this.restartGame();
         }, 3.0);
     }
 
-    private showWinLoseMessage(isWin: boolean): void {
-        if (this.winLoseLabel) {
-            if (isWin) {
-                this.winLoseLabel.string = "ПОБЕДА!";
-                this.winLoseLabel.node.color = cc.Color.GREEN;
-            } else {
-                this.winLoseLabel.string = "ПОРАЖЕНИЕ";
-                this.winLoseLabel.node.color = cc.Color.RED;
-            }
-            this.winLoseLabel.node.active = true;
-            this.winLoseLabel.node.scale = 0;
-            cc.tween(this.winLoseLabel.node)
-                .to(0.5, { scale: 1.0 })
-                .start();
-        }
-    }
-
-    private hideWinLoseMessage(): void {
-        if (this.winLoseLabel) {
-            this.winLoseLabel.node.active = false;
-        }
-    }
-
     private restartGame(): void {
-        this.hideWinLoseMessage();
         this.setupStats();
         if (this.boosterSystem) {
             this.boosterSystem.resetBoosters();
@@ -168,7 +166,13 @@ export class GameManager extends cc.Component {
         if (this.tileContainerComponent) {
             this.tileContainerComponent.initializeContainer(this.config);
         }
-        this.updateUI();
+        this.eventSystem.emit(Events.UI_UPDATE_REQUESTED, this.stats);
+    }
+
+    onDestroy() {
+        this.eventSystem.off(Events.TILE_CLICKED, this.boundOnTileClicked);
+        this.eventSystem.off(Events.TILES_BURNED, this.boundOnTilesBurned);
+        this.eventSystem.off(Events.GROUP_BURNED_SUCCESSFULLY, this.boundOnGroupBurnedSuccessfully);
     }
 
     public refreshEntireField(): void {

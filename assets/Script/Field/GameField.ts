@@ -6,18 +6,20 @@ const { ccclass, property } = cc._decorator;
 
 import { GameConfig, Position } from "../Core/GameState";
 import { EventSystem, Events } from "../Core/EventSystem";
+import { PositionUtils } from "../Utils/PositionUtils";
+import { WorldPositionUtils } from "../Utils/WorldPositionUtils";
 
 @ccclass
 export class GameField extends cc.Component {
     @property(cc.Node)
-    tileContainer: cc.Node = null;
+    tileContainer: cc.Node = null!;
 
     @property(cc.Prefab)
-    tilePrefab: cc.Prefab = null;
+    tilePrefab: cc.Prefab = null!;
 
-    private config: GameConfig;
-    private field: cc.Node[][];
-    private eventSystem: EventSystem;
+    private config!: GameConfig;
+    private field!: cc.Node[][];
+    private eventSystem!: EventSystem;
 
     onLoad() {
         this.eventSystem = EventSystem.getInstance();
@@ -33,7 +35,7 @@ export class GameField extends cc.Component {
         for (let x = 0; x < this.config.fieldWidth; x++) {
             this.field[x] = [];
             for (let y = 0; y < this.config.fieldHeight; y++) {
-                this.field[x][y] = null;
+                this.field[x][y] = null!;
             }
         }
     }
@@ -53,23 +55,16 @@ export class GameField extends cc.Component {
 
     public removeTileAt(position: Position): void {
         if (this.isValidPosition(position)) {
-            this.field[position.x][position.y] = null;
+            this.field[position.x][position.y] = null!;
         }
     }
 
     public isValidPosition(position: Position): boolean {
-        return position.x >= 0 && position.x < this.config.fieldWidth &&
-               position.y >= 0 && position.y < this.config.fieldHeight;
+        return PositionUtils.isValidPosition(position);
     }
 
     public getWorldPosition(position: Position): cc.Vec2 {
-        const tileSize = 80;
-        const startX = -(this.config.fieldWidth - 1) * tileSize / 2;
-        const startY = (this.config.fieldHeight - 1) * tileSize / 2;
-        return cc.v2(
-            startX + position.x * tileSize,
-            startY - position.y * tileSize
-        );
+        return WorldPositionUtils.getWorldPositionForField(position);
     }
 
     public getAllPositions(): Position[] {

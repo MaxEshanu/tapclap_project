@@ -4,9 +4,18 @@
 
 import { GameState, Position } from "./GameState";
 
+export interface EventCallback<T = any> {
+    (data?: T): void;
+}
+
+export interface EventListener {
+    event: string;
+    callback: EventCallback;
+}
+
 export class EventSystem {
     private static instance: EventSystem;
-    private events: Map<string, Function[]> = new Map();
+    private events: Map<string, EventCallback[]> = new Map();
 
     static getInstance(): EventSystem {
         if (!EventSystem.instance) {
@@ -15,14 +24,18 @@ export class EventSystem {
         return EventSystem.instance;
     }
 
-    on(event: string, callback: Function): void {
+    clear(): void {
+        this.events.clear();
+    }
+
+    on<T = any>(event: string, callback: EventCallback<T>): void {
         if (!this.events.has(event)) {
             this.events.set(event, []);
         }
         this.events.get(event)!.push(callback);
     }
 
-    off(event: string, callback: Function): void {
+    off<T = any>(event: string, callback: EventCallback<T>): void {
         const callbacks = this.events.get(event);
         if (callbacks) {
             const index = callbacks.indexOf(callback);
@@ -32,7 +45,7 @@ export class EventSystem {
         }
     }
 
-    emit(event: string, data?: any): void {
+    emit<T = any>(event: string, data?: T): void {
         const callbacks = this.events.get(event);
         if (callbacks) {
             callbacks.forEach(callback => callback(data));
@@ -58,5 +71,9 @@ export const Events = {
     BOOSTER_BOMB_EXECUTE: "booster_bomb_execute",
     BOOSTER_TELEPORT_EXECUTE: "booster_teleport_execute",
     TELEPORT_FIRST_TILE_SELECTED: "teleport_first_tile_selected",
-    TILES_SWAPPED: "tiles_swapped"
+    TILES_SWAPPED: "tiles_swapped",
+    ANIMATION_COMPLETED: "animation_completed",
+    UI_UPDATE_REQUESTED: "ui_update_requested",
+    TILES_DESTROYED: "tiles_destroyed",
+    GROUP_BURNED_SUCCESSFULLY: "group_burned_successfully"
 };

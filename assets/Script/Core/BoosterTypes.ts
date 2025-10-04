@@ -28,10 +28,3 @@ export interface BoosterData {
     teleport: BoosterConfig;
 }
 
-export interface TileSwapData {
-    position1: Position;
-    position2: Position;
-    tile1Type: string;
-    tile2Type: string;
-}
-
