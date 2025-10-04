@@ -1,0 +1,36 @@
+@font-face {
+    font-family: 'Marvin';
+    src: url('Marvin-Round.eot');
+    src: local('Marvin Round'), local('Marvin-Round'),
+        url('Marvin-Round.eot?#iefix') format('embedded-opentype'),
+        url('Marvin-Round.woff2') format('woff2'),
+        url('Marvin-Round.woff') format('woff'),
+        url('Marvin-Round.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Marvin';
+    src: url('Marvin.eot');
+    src: local('Marvin'),
+        url('Marvin.eot?#iefix') format('embedded-opentype'),
+        url('Marvin.woff2') format('woff2'),
+        url('Marvin.woff') format('woff'),
+        url('Marvin.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Marvin';
+    src: url('Marvin-Shadow.eot');
+    src: local('Marvin Shadow'), local('Marvin-Shadow'),
+        url('Marvin-Shadow.eot?#iefix') format('embedded-opentype'),
+        url('Marvin-Shadow.woff2') format('woff2'),
+        url('Marvin-Shadow.woff') format('woff'),
+        url('Marvin-Shadow.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}
+

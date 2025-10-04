@@ -1,0 +1,45 @@
+/**
+ * Marvin Font Family
+ * Используется в макете игры
+ */
+
+/* Базовый шрифт Marvin */
+@font-face {
+  font-family: 'Marvin';
+  src: url('./Marvin.woff2') format('woff2'),
+       url('./Marvin.woff') format('woff'),
+       url('./Marvin.ttf') format('truetype'),
+       url('./Marvin.eot') format('embedded-opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Marvin Round для особых случаев */
+@font-face {
+  font-family: 'Marvin Round';
+  src: url('./Marvin-Round.woff2') format('woff2'),
+       url('./Marvin-Round.woff') format('woff'),
+       url('./Marvin-Round.ttf') format('truetype'),
+       url('./Marvin-Round.eot') format('embedded-opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Marvin Shadow для эффектов */
+@font-face {
+  font-family: 'Marvin Shadow';
+  src: url('./Marvin-Shadow.woff2') format('woff2'),
+       url('./Marvin-Shadow.woff') format('woff'),
+       url('./Marvin-Shadow.ttf') format('truetype'),
+       url('./Marvin-Shadow.eot') format('embedded-opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Fallback шрифты для Canvas */
+.marvin-font {
+  font-family: 'Marvin', 'Arial Black', Arial, sans-serif;
+}
