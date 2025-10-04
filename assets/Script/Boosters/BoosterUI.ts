@@ -68,10 +68,12 @@ export class BoosterUI extends cc.Component {
 
     private onBoosterActivated(data?: { type?: BoosterType }): void {
         this.updateUI();
+        this.showBoosterActivationEffect(data?.type);
     }
 
     private onBoosterDeactivated(data?: { type?: BoosterType }): void {
         this.updateUI();
+        this.hideBoosterActivationEffect();
     }
 
     private updateUI(): void {
@@ -120,6 +122,40 @@ export class BoosterUI extends cc.Component {
 
         const opacity = isAvailable ? 255 : 128;
         button.node.opacity = opacity;
+    }
+
+    private showBoosterActivationEffect(type?: BoosterType): void {
+        if (!type) return;
+
+        let targetButton: cc.Button | null = null;
+        
+        if (type === BoosterType.BOMB && this.bombButton) {
+            targetButton = this.bombButton;
+        } else if (type === BoosterType.TELEPORT && this.teleportButton) {
+            targetButton = this.teleportButton;
+        }
+
+        if (targetButton && targetButton.node) {
+            cc.tween(targetButton.node)
+                .repeatForever(
+                    cc.tween()
+                        .to(0.5, { scale: 1.1 })
+                        .to(0.5, { scale: 1.0 })
+                )
+                .start();
+        }
+    }
+
+    private hideBoosterActivationEffect(): void {
+        if (this.bombButton && this.bombButton.node) {
+            cc.Tween.stopAllByTarget(this.bombButton.node);
+            this.bombButton.node.scale = 1.0;
+        }
+        
+        if (this.teleportButton && this.teleportButton.node) {
+            cc.Tween.stopAllByTarget(this.teleportButton.node);
+            this.teleportButton.node.scale = 1.0;
+        }
     }
 
     onDestroy() {
